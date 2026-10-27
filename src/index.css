@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --color-paper: #070d16;
+  --color-card: #121b2b;
+  --color-ink: #e8eef6;
+  --color-muted: #9aafc3;
+  --color-line: #2c3e54;
+  --color-accent: #e0c17a;
+  --color-accent-dark: #c9a45a;
+  --color-ice: #8eb4d4;
+  --color-correct: #b7e0c4;
+  --color-correct-soft: #143028;
+  --color-wrong: #f0b2a8;
+  --color-wrong-soft: #3a2226;
+}
+
+html {
+  background: var(--color-paper);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: #3d4e34;
+  color: #f4efe2;
+}
+
+.score-tick {
+  animation: score-pop 280ms ease;
+}
+
+.clue-open {
+  animation: clue-in 320ms ease;
+}
+
+.pin-pulse {
+  animation: pin-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes score-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes clue-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pin-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-tick,
+  .clue-open,
+  .pin-pulse {
+    animation: none;
+  }
+}
