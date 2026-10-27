@@ -9,6 +9,6 @@ npm test
 npm run build
 ```
 
-The daily set is a deterministic shuffle of the local question bank, seeded by the UTC date and the bank version. The same date always produces the same five puzzles.
+The daily set is a deterministic shuffle of the local question bank, seeded by the calendar date in the browser's timezone and the bank version. A page opened in China changes at midnight Beijing time; another country changes at midnight there. The same local date and bank version always produce the same five puzzles.
 
 Practice rounds are stored separately and do not replace the day's official score.

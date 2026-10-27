@@ -14,10 +14,11 @@ interface SaveFile {
   daily: Record<string, GameState>
   practice: GameState | null
   bestScore: number | null
+  extraUnlocked: Record<string, true>
 }
 
 function emptyFile(): SaveFile {
-  return { locale: 'en', daily: {}, practice: null, bestScore: null }
+  return { locale: 'en', daily: {}, practice: null, bestScore: null, extraUnlocked: {} }
 }
 
 function browserStore(): KeyValueStore {
@@ -41,7 +42,13 @@ function sanitize(value: unknown): SaveFile {
   }
   const practice = isGameState(raw.practice) && raw.practice.mode === 'practice' ? raw.practice : null
   const bestScore = typeof raw.bestScore === 'number' && Number.isFinite(raw.bestScore) ? raw.bestScore : null
-  return { locale, daily, practice, bestScore }
+  const extraUnlocked: Record<string, true> = {}
+  if (raw.extraUnlocked && typeof raw.extraUnlocked === 'object') {
+    for (const [key, value] of Object.entries(raw.extraUnlocked)) {
+      if (value === true) extraUnlocked[key] = true
+    }
+  }
+  return { locale, daily, practice, bestScore, extraUnlocked }
 }
 
 function readFile(store: KeyValueStore): SaveFile {
@@ -111,4 +118,15 @@ export function loadPractice(store: KeyValueStore = browserStore()): GameState |
 export function savePractice(state: GameState, store: KeyValueStore = browserStore()): void {
   const file = readFile(store)
   writeFile(store, { ...file, practice: state })
+}
+
+export function isExtraUnlocked(date: string, bankVersion: string, store: KeyValueStore = browserStore()): boolean {
+  return readFile(store).extraUnlocked[slotKey(date, bankVersion)] === true
+}
+
+export function unlockExtra(date: string, bankVersion: string, store: KeyValueStore = browserStore()): void {
+  const file = readFile(store)
+  const key = slotKey(date, bankVersion)
+  if (file.extraUnlocked[key]) return
+  writeFile(store, { ...file, extraUnlocked: { ...file.extraUnlocked, [key]: true } })
 }

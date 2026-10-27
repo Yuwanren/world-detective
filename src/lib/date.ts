@@ -1,9 +1,15 @@
 import type { Locale } from '../types/index.ts'
 
-export function getUtcDateString(now = new Date()): string {
-  const year = now.getUTCFullYear()
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(now.getUTCDate()).padStart(2, '0')
+export function getLocalDateString(now = new Date(), timeZone = browserTimeZone()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now)
+  const year = datePart(parts, 'year')
+  const month = datePart(parts, 'month')
+  const day = datePart(parts, 'day')
   return `${year}-${month}-${day}`
 }
 
@@ -18,4 +24,14 @@ export function formatChallengeDate(isoDate: string, locale: Locale): string {
     day: 'numeric',
     timeZone: 'UTC',
   }).format(date)
+}
+
+function browserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+function datePart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
+  const value = parts.find((part) => part.type === type)?.value
+  if (!value) throw new Error(`Missing date part: ${type}`)
+  return value
 }

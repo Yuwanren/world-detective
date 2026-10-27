@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { Button, secondaryActionClass } from './Button.tsx'
 import { downloadScoreCard } from '../lib/scoreCard.ts'
-import { buildChallengeLink, buildShareText, copyText } from '../lib/share.ts'
+import { buildChallengeLink, buildShareText, copyText, deliverShareText } from '../lib/share.ts'
+import { isExtraUnlocked, loadPractice, unlockExtra } from '../lib/storage.ts'
 import { accuracyLabel, MAX_DAILY_SCORE, rankForScore, solvedCount, totalCluesUsed, totalScore } from '../lib/scoring.ts'
 import { rankTitle, scoreOutOf, t } from '../i18n/index.ts'
 import { displayAnswer } from '../lib/answers.ts'
@@ -27,11 +28,32 @@ export function CompletionSummary({ state, locale }: { state: GameState; locale:
     practice: state.mode === 'practice',
   })
   const shareReady = state.results.length === state.questionIds.length && state.questionIds.length === 5
+  const savedExtra = state.mode === 'daily' ? loadPractice() : null
+  const extraForToday = savedExtra?.date === state.date && savedExtra.bankVersion === state.bankVersion ? savedExtra : null
   const [copied, setCopied] = useState<'share' | 'link' | null>(null)
   const [manualCopy, setManualCopy] = useState<string | null>(null)
   const [cardFailed, setCardFailed] = useState(false)
+  const [unlocked, setUnlocked] = useState(() => state.mode === 'daily' && isExtraUnlocked(state.date, state.bankVersion))
+
+  function grantExtra() {
+    unlockExtra(state.date, state.bankVersion)
+    setUnlocked(true)
+    setManualCopy(null)
+    setCopied('share')
+  }
 
   async function copy(kind: 'share' | 'link', text: string) {
+    if (kind === 'share' && state.mode === 'daily') {
+      const result = await deliverShareText(text)
+      if (result === 'cancelled') return
+      if (result === 'shared') {
+        grantExtra()
+        return
+      }
+      setCopied(null)
+      setManualCopy(text)
+      return
+    }
     const ok = await copyText(text)
     if (ok) {
       setCopied(kind)
@@ -145,17 +167,23 @@ export function CompletionSummary({ state, locale }: { state: GameState; locale:
           <div>
             <p className="text-sm text-wrong">{t(locale, 'copyFailed')}</p>
             <textarea readOnly className="mt-2 h-36 w-full rounded-md border border-line bg-card p-3 text-sm" value={manualCopy} />
+            {state.mode === 'daily' && !unlocked ? (
+              <Button className="mt-3" variant="secondary" onClick={grantExtra}>
+                {t(locale, 'extraConfirm')}
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </section>
       ) : null}
 
       <div className="grid gap-3">
-        {state.mode === 'daily' ? (
-          <Link className={secondaryActionClass} to="/play?mode=practice&fresh=1">
-            {t(locale, 'practiceAgain')}
+        {state.mode === 'daily' && unlocked && extraForToday?.status !== 'complete' ? (
+          <Link className={secondaryActionClass} to={extraForToday && extraForToday.status !== 'complete' ? '/play?mode=practice' : '/play?mode=practice&fresh=1'}>
+            {extraForToday && extraForToday.status !== 'complete' ? t(locale, 'continuePractice') : t(locale, 'practiceAgain')}
           </Link>
         ) : null}
+        {state.mode === 'daily' && extraForToday?.status === 'complete' ? <p className="text-center text-sm text-ice">{t(locale, 'extraDone')}</p> : null}
         <Link className={secondaryActionClass} to="/">
           {t(locale, 'backHome')}
         </Link>

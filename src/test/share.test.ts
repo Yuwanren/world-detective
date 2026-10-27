@@ -29,7 +29,7 @@ describe('share text', () => {
       link,
       practice: true,
     })
-    expect(practice).toContain('练习局')
+    expect(practice).toContain('加赛')
     expect(practice).toContain('得分 100/500')
     expect(practice).not.toContain('五个地点已经打完')
 

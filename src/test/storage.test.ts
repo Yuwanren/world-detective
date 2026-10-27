@@ -3,7 +3,7 @@ import { questions } from '../data/questions.ts'
 import { BANK_VERSION, STORAGE_KEY } from '../lib/constants.ts'
 import { createGameState, reduceGame } from '../lib/game.ts'
 import { totalScore } from '../lib/scoring.ts'
-import { loadBestScore, loadDaily, loadLocale, loadPractice, saveDaily, saveLocale, savePractice } from '../lib/storage.ts'
+import { isExtraUnlocked, loadBestScore, loadDaily, loadLocale, loadPractice, saveDaily, saveLocale, savePractice, unlockExtra } from '../lib/storage.ts'
 import { createMemoryStore } from './memoryStore.ts'
 import { pin } from './pins.ts'
 
@@ -106,6 +106,25 @@ describe('saved progress', () => {
     savePractice({ ...weaker, mode: 'practice', date: '2026-10-22' }, store)
     expect(loadBestScore(store)).toBe(500)
     expect(loadDaily('2026-10-22', BANK_VERSION, store)?.results[0]?.score).toBe(100)
+  })
+
+  it('remembers one extra-round unlock for that day', () => {
+    const store = createMemoryStore()
+    unlockExtra('2026-10-28', BANK_VERSION, store)
+    unlockExtra('2026-10-28', BANK_VERSION, store)
+    expect(isExtraUnlocked('2026-10-28', BANK_VERSION, store)).toBe(true)
+    expect(isExtraUnlocked('2026-10-29', BANK_VERSION, store)).toBe(false)
+    saveDaily(
+      createGameState({
+        mode: 'daily',
+        date: '2026-10-28',
+        bankVersion: BANK_VERSION,
+        questionIds: ids,
+      }),
+      store,
+    )
+    expect(isExtraUnlocked('2026-10-28', BANK_VERSION, store)).toBe(true)
+    expect(loadBestScore(store)).toBeNull()
   })
 
   it('keeps a completed round saved before pin guesses existed', () => {

@@ -15,7 +15,10 @@ import { caseLabel, categoryLabel, clueLabel, pointsLabel, potentialLabel, spent
 import { displayAnswer } from '../lib/answers.ts'
 import type { CountryHit } from '../data/countries.ts'
 import type { GeoPoint } from '../lib/geo.ts'
+import { BANK_VERSION } from '../lib/constants.ts'
+import { getLocalDateString } from '../lib/date.ts'
 import { CLUE_SCORES, scoreForSolvedClue, totalScore } from '../lib/scoring.ts'
+import { isExtraUnlocked } from '../lib/storage.ts'
 import type { GameMode, Question, QuestionResult } from '../types/index.ts'
 
 const LocateGlobe = lazy(() => import('../components/LocateGlobe.tsx').then((module) => ({ default: module.LocateGlobe })))
@@ -32,7 +35,24 @@ export function GamePage() {
     }, { replace: true })
   }, [setParams])
 
+  if (mode === 'practice' && !isExtraUnlocked(getLocalDateString(), BANK_VERSION)) {
+    return <ExtraLocked />
+  }
+
   return <GameSession key={`${mode}:${fresh ? 'fresh' : 'saved'}`} mode={mode} fresh={fresh} onConsumeFresh={consumeFresh} />
+}
+
+function ExtraLocked() {
+  const { locale } = useLocale()
+  return (
+    <AppShell size="wide">
+      <StatusMessage
+        title={t(locale, 'extraLockedTitle')}
+        body={t(locale, 'extraLockedBody')}
+        action={<Link className={primaryActionClass} to="/">{t(locale, 'backHome')}</Link>}
+      />
+    </AppShell>
+  )
 }
 
 function GameSession({

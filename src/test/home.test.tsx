@@ -1,14 +1,14 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../components/LocaleProvider.tsx'
 import { HomePage } from '../pages/HomePage.tsx'
 import { questions } from '../data/questions.ts'
 import { BANK_VERSION } from '../lib/constants.ts'
-import { formatChallengeDate, getUtcDateString } from '../lib/date.ts'
+import { formatChallengeDate, getLocalDateString } from '../lib/date.ts'
 import { createGameState, reduceGame } from '../lib/game.ts'
-import { saveDaily } from '../lib/storage.ts'
+import { isExtraUnlocked, saveDaily } from '../lib/storage.ts'
 import { pin } from './pins.ts'
 
 function renderHome() {
@@ -29,7 +29,7 @@ describe('home page', () => {
     expect(screen.getByText('Five mysterious places. Four clues each. How early can you solve them?')).toBeInTheDocument()
     expect(screen.getByText('Read the clues, pin the globe, and score more by solving a place earlier.')).toBeInTheDocument()
     expect(screen.getByText('0/5')).toBeInTheDocument()
-    expect(screen.getByText(formatChallengeDate(getUtcDateString(), 'en'))).toBeInTheDocument()
+    expect(screen.getByText(formatChallengeDate(getLocalDateString(), 'en'))).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Start investigation' })).toHaveAttribute('href', '/play')
     const map = screen.getByRole('img', { name: 'World chart' })
     expect(map.querySelectorAll('path').length).toBeGreaterThan(40)
@@ -48,7 +48,7 @@ describe('home page', () => {
     const ids = ['japan', 'france', 'egypt', 'brazil', 'canada']
     let state = createGameState({
       mode: 'daily',
-      date: getUtcDateString(),
+      date: getLocalDateString(),
       bankVersion: BANK_VERSION,
       questionIds: ids,
     })
@@ -61,6 +61,32 @@ describe('home page', () => {
     renderHome()
     expect(screen.getByText('2/5')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Continue investigation' })).toHaveAttribute('href', '/play')
-    expect(screen.queryByRole('link', { name: 'Start practice' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Play five more' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Share results to unlock five more' })).not.toBeInTheDocument()
+  })
+
+  it('unlocks five more places after the official result is shared', async () => {
+    const ids = ['japan', 'france', 'egypt', 'brazil', 'canada']
+    let state = createGameState({
+      mode: 'daily',
+      date: getLocalDateString(),
+      bankVersion: BANK_VERSION,
+      questionIds: ids,
+    })
+    for (const id of ids) {
+      state = reduceGame(reduceGame(state, { type: 'set-guess', point: pin(id) }, questions), { type: 'submit-pin' }, questions)
+      state = reduceGame(state, { type: 'next' }, questions)
+    }
+    saveDaily(state)
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+
+    renderHome()
+    expect(screen.queryByRole('link', { name: 'Play five more' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Share results to unlock five more' }))
+
+    expect(writeText).toHaveBeenCalled()
+    expect(isExtraUnlocked(getLocalDateString(), BANK_VERSION)).toBe(true)
+    expect(screen.getByRole('link', { name: 'Play five more' })).toHaveAttribute('href', '/play?mode=practice&fresh=1')
   })
 })

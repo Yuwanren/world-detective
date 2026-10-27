@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getGeoLink, pendingLocationIds, playableQuestionIds } from '../data/locations.ts'
+import { getGeoLink, getPlaceFix, pendingLocationIds, playableQuestionIds } from '../data/locations.ts'
 import { questions } from '../data/questions.ts'
 import { BANK_VERSION } from '../lib/constants.ts'
-import { selectDailyQuestionIds } from '../lib/daily.ts'
-import { formatChallengeDate, getUtcDateString } from '../lib/date.ts'
+import { MIX_EPOCH, selectDailyQuestionIds, selectExtraQuestionIds } from '../lib/daily.ts'
+import { formatChallengeDate, getLocalDateString } from '../lib/date.ts'
 import { createGameState, resumeOrCreate } from '../lib/game.ts'
 
 const sampleIds = ['japan', 'france', 'egypt', 'brazil', 'canada', 'kenya', 'norway']
@@ -44,6 +44,7 @@ describe('daily selection', () => {
       expect(new Set(picked).size, date).toBe(5)
       expect(picked.every((id) => ids.includes(id)), date).toBe(true)
       expect(countryPlaceOverlap(picked), `${date} ${picked.join(',')}`).toBe(false)
+      if (date >= MIX_EPOCH) expect(categoryCounts(picked), date).toEqual({ country: 2, city: 2, landmark: 1 })
       expect(selectDailyQuestionIds(date, [...ids].reverse(), 5, BANK_VERSION)).toEqual(picked)
     }
   })
@@ -95,14 +96,45 @@ describe('daily selection', () => {
     expect(resumed.questionIds).toEqual(savedIds)
   })
 
-  it('uses the UTC date, including near local midnight', () => {
-    expect(getUtcDateString(new Date('2026-10-23T00:30:00+08:00'))).toBe('2026-10-22')
-    expect(getUtcDateString(new Date('2026-10-23T00:30:00Z'))).toBe('2026-10-23')
+  it('draws a second set that skips the official five', () => {
+    const ids = playableQuestionIds(questions.map((question) => question.id))
+    const official = selectDailyQuestionIds('2026-10-28', ids, 5, BANK_VERSION)
+    const extra = selectExtraQuestionIds('2026-10-28', ids, 5, BANK_VERSION)
+    expect(categoryCounts(official)).toEqual({ country: 2, city: 2, landmark: 1 })
+    expect(categoryCounts(extra)).toEqual({ country: 2, city: 2, landmark: 1 })
+    expect(official).toHaveLength(5)
+    expect(extra).toHaveLength(5)
+    expect(extra.every((id) => !official.includes(id))).toBe(true)
+    expect(new Set(extra).size).toBe(5)
+    expect(countryPlaceOverlap(official)).toBe(false)
+    expect(countryPlaceOverlap(extra)).toBe(false)
+    expect(selectDailyQuestionIds('2026-10-29', ids, 5, BANK_VERSION)).not.toEqual(official)
+    expect(selectExtraQuestionIds('2026-10-28', [...ids].reverse(), 5, BANK_VERSION)).toEqual(extra)
+  })
+
+  it('uses the calendar date where the page is opened', () => {
+    const justAfterBeijingMidnight = new Date('2026-10-23T00:30:00+08:00')
+    expect(getLocalDateString(justAfterBeijingMidnight, 'Asia/Shanghai')).toBe('2026-10-23')
+    expect(getLocalDateString(justAfterBeijingMidnight, 'UTC')).toBe('2026-10-22')
+    expect(getLocalDateString(new Date('2026-10-23T02:30:00Z'), 'America/New_York')).toBe('2026-10-22')
+    expect(getLocalDateString(new Date('2026-10-23T02:30:00Z'), 'Asia/Shanghai')).toBe('2026-10-23')
+    const now = new Date('2026-10-23T00:30:00Z')
+    const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    expect(getLocalDateString(now)).toBe(getLocalDateString(now, browserZone))
     expect(formatChallengeDate('2026-10-22', 'en')).toContain('Thursday')
     expect(formatChallengeDate('2026-10-22', 'en')).toContain('October')
     expect(formatChallengeDate('2026-10-22', 'zh')).toContain('2026')
   })
 })
+
+function categoryCounts(ids: readonly string[]): Record<string, number> {
+  const counts: Record<string, number> = { country: 0, city: 0, landmark: 0 }
+  for (const id of ids) {
+    const category = getPlaceFix(id)?.locationType
+    if (category) counts[category] = (counts[category] ?? 0) + 1
+  }
+  return counts
+}
 
 function countryPlaceOverlap(ids: readonly string[]): boolean {
   const links = ids.map((id) => getGeoLink(id))

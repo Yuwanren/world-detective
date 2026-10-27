@@ -1,21 +1,23 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { AppShell } from '../components/AppShell.tsx'
-import { primaryActionClass } from '../components/Button.tsx'
+import { Button, primaryActionClass } from '../components/Button.tsx'
 import { WorldMap } from '../components/WorldMap.tsx'
 import { questions } from '../data/questions.ts'
 import { useLocale } from '../hooks/useLocale.ts'
 import { t } from '../i18n/index.ts'
 import { BANK_VERSION, DAILY_QUESTION_COUNT } from '../lib/constants.ts'
-import { formatChallengeDate, getUtcDateString } from '../lib/date.ts'
+import { formatChallengeDate, getLocalDateString } from '../lib/date.ts'
 import { isUsableSavedGame, summarizeProgress } from '../lib/game.ts'
-import { totalScore } from '../lib/scoring.ts'
-import { loadBestScore, loadDaily, loadPractice } from '../lib/storage.ts'
+import { MAX_DAILY_SCORE, totalScore } from '../lib/scoring.ts'
+import { buildChallengeLink, buildShareText, deliverShareText } from '../lib/share.ts'
+import { isExtraUnlocked, loadBestScore, loadDaily, loadPractice, unlockExtra } from '../lib/storage.ts'
 
 const knownIds = new Set(questions.map((question) => question.id))
 
 export function HomePage() {
   const { locale } = useLocale()
-  const date = getUtcDateString()
+  const date = getLocalDateString()
   const savedDaily = loadDaily(date, BANK_VERSION)
   const daily = isUsableSavedGame(savedDaily, {
     mode: 'daily',
@@ -38,8 +40,33 @@ export function HomePage() {
     ? savedPractice
     : null
   const practiceOpen = practice !== null && practice.status !== 'complete'
+  const extraDone = practice?.status === 'complete'
+  const [extraUnlocked, setExtraUnlocked] = useState(() => isExtraUnlocked(date, BANK_VERSION))
+  const [manualShare, setManualShare] = useState<string | null>(null)
   const actionLabel =
     progress.phase === 'complete' ? t(locale, 'viewScore') : progress.phase === 'active' ? t(locale, 'continue') : t(locale, 'start')
+  function grantExtra() {
+    unlockExtra(date, BANK_VERSION)
+    setExtraUnlocked(true)
+    setManualShare(null)
+  }
+
+  async function shareOfficial() {
+    if (!daily || daily.status !== 'complete' || extraUnlocked) return
+    const text = buildShareText({
+      locale,
+      dateLabel: formatChallengeDate(date, locale),
+      total: totalScore(daily.results),
+      maxScore: MAX_DAILY_SCORE,
+      scores: daily.results.map((result) => result.score),
+      link: buildChallengeLink(window.location.origin),
+      practice: false,
+    })
+    const result = await deliverShareText(text)
+    if (result === 'shared') grantExtra()
+    if (result === 'manual') setManualShare(text)
+  }
+
   const rules = [t(locale, 'rule1'), t(locale, 'rule2'), t(locale, 'rule3'), t(locale, 'rule4')]
   const stats = [
     { label: t(locale, 'progressLabel'), value: `${progress.solved}/${progress.total || DAILY_QUESTION_COUNT}`, gold: false },
@@ -83,7 +110,8 @@ export function HomePage() {
           <Link className={primaryActionClass} to="/play">
             {actionLabel}
           </Link>
-          {progress.phase === 'complete' ? (
+          {progress.phase === 'complete' && extraDone ? <p className="mt-3 text-center text-sm text-ice">{t(locale, 'extraDone')}</p> : null}
+          {progress.phase === 'complete' && !extraDone && extraUnlocked ? (
             <Link
               className="mt-3 block text-center text-sm text-ice underline decoration-line underline-offset-4 hover:text-accent"
               to={practiceOpen ? '/play?mode=practice' : '/play?mode=practice&fresh=1'}
@@ -91,10 +119,23 @@ export function HomePage() {
               {practiceOpen ? t(locale, 'continuePractice') : t(locale, 'practiceAgain')}
             </Link>
           ) : null}
+          {progress.phase === 'complete' && !extraDone && !extraUnlocked ? (
+            <div className="mt-3">
+              <Button onClick={() => void shareOfficial()}>{t(locale, 'extraShare')}</Button>
+              {manualShare ? (
+                <div className="mt-3">
+                  <textarea readOnly className="h-36 w-full rounded-md border border-line bg-card p-3 text-sm" value={manualShare} />
+                  <Button className="mt-3" variant="secondary" onClick={grantExtra}>
+                    {t(locale, 'extraConfirm')}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
       <p className="mt-4 max-w-xl text-xs leading-5 text-muted">
-        {progress.phase === 'complete' ? `${t(locale, 'practiceNote')} ` : null}
+        {progress.phase === 'complete' && !extraDone ? `${t(locale, 'practiceNote')} ` : null}
         {t(locale, 'localNote')}
       </p>
 
