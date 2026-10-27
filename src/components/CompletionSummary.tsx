@@ -30,6 +30,7 @@ export function CompletionSummary({ state, locale }: { state: GameState; locale:
   const shareReady = state.results.length === state.questionIds.length && state.questionIds.length === 5
   const savedExtra = state.mode === 'daily' ? loadPractice() : null
   const extraForToday = savedExtra?.date === state.date && savedExtra.bankVersion === state.bankVersion ? savedExtra : null
+  const extraInProgress = extraForToday !== null && extraForToday.status !== 'complete'
   const [copied, setCopied] = useState<'share' | 'link' | null>(null)
   const [manualCopy, setManualCopy] = useState<string | null>(null)
   const [cardFailed, setCardFailed] = useState(false)
@@ -178,9 +179,14 @@ export function CompletionSummary({ state, locale }: { state: GameState; locale:
       ) : null}
 
       <div className="grid gap-3">
-        {state.mode === 'daily' && unlocked && extraForToday?.status !== 'complete' ? (
-          <Link className={secondaryActionClass} to={extraForToday && extraForToday.status !== 'complete' ? '/play?mode=practice' : '/play?mode=practice&fresh=1'}>
-            {extraForToday && extraForToday.status !== 'complete' ? t(locale, 'continuePractice') : t(locale, 'practiceAgain')}
+        {state.mode === 'daily' && unlocked && extraForToday === null ? (
+          <Link className={secondaryActionClass} to="/play?mode=practice&fresh=1">
+            {t(locale, 'practiceAgain')}
+          </Link>
+        ) : null}
+        {state.mode === 'daily' && unlocked && extraInProgress ? (
+          <Link className={secondaryActionClass} to="/play?mode=practice">
+            {t(locale, 'continuePractice')}
           </Link>
         ) : null}
         {state.mode === 'daily' && extraForToday?.status === 'complete' ? <p className="text-center text-sm text-ice">{t(locale, 'extraDone')}</p> : null}
